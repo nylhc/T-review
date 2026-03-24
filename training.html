@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>CryptoView — 专业加密货币行情</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <!-- ===== 顶部导航 ===== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="14" width="4" height="8" rx="1" fill="#2962FF" />
+          <rect x="8" y="8" width="4" height="14" rx="1" fill="#2962FF" />
+          <rect x="14" y="4" width="4" height="18" rx="1" fill="#2962FF" />
+          <rect x="20" y="10" width="4" height="12" rx="1" fill="#2962FF" opacity="0.6" />
+        </svg>
+        <span class="logo-text">CryptoView</span>
+      </div>
+      <nav class="top-nav">
+        <a href="index.html" class="nav-item">行情</a>
+        <a href="training.html" class="nav-item active">训练</a>
+        <a href="#" class="nav-item">热门</a>
+      </nav>
+    </div>
+    <div class="topbar-right">
+      <div class="search-box">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+        <input id="searchInput" type="text" placeholder="搜索交易对..." autocomplete="off" />
+        <div id="searchDropdown" class="search-dropdown hidden"></div>
+      </div>
+      <div class="connection-status" id="connStatus">
+        <span class="dot"></span><span class="conn-label">连接中...</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <!-- ===== 左侧交易对列表 ===== -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span>交易对</span>
+        <div class="sort-btns">
+          <button class="sort-btn active" data-sort="vol">成交量</button>
+          <button class="sort-btn" data-sort="change">涨跌幅</button>
+        </div>
+      </div>
+      <div class="ticker-list" id="tickerList">
+        <div class="loading-skeleton">加载中...</div>
+      </div>
+    </aside>
+    <button class="sidebar-toggle-btn" id="btnToggleSidebar" title="隐藏左侧交易对">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15,18 9,12 15,6" />
+      </svg>
+    </button>
+
+    <!-- ===== 主图表区域 ===== -->
+    <main class="chart-main">
+      <!-- 图表顶部信息栏 -->
+      <div class="chart-header">
+        <div class="symbol-info">
+          <span class="symbol-name" id="symbolName">BTC/USDT</span>
+          <span class="exchange-badge">BINANCE</span>
+        </div>
+        <div class="price-info">
+          <span class="current-price" id="currentPrice">--</span>
+          <span class="price-change" id="priceChange">--</span>
+        </div>
+        <div class="ohlcv-info" id="ohlcvInfo">
+          <span>开: <b id="infoO">--</b></span>
+          <span>高: <b id="infoH">--</b></span>
+          <span>低: <b id="infoL">--</b></span>
+          <span>收: <b id="infoC">--</b></span>
+          <span>量: <b id="infoV">--</b></span>
+        </div>
+      </div>
+
+      <!-- 工具栏 -->
+      <div class="chart-toolbar">
+        <!-- 时间周期 - 桌面端按钮组 -->
+        <div class="interval-group desktop-only">
+          <button class="interval-btn" data-interval="1m">1分</button>
+          <button class="interval-btn active" data-interval="5m">5分</button>
+          <button class="interval-btn" data-interval="15m">15分</button>
+          <button class="interval-btn" data-interval="1h">1时</button>
+          <button class="interval-btn" data-interval="4h">4时</button>
+          <button class="interval-btn" data-interval="1d">日线</button>
+          <button class="interval-btn" data-interval="1w">周线</button>
+        </div>
+        <!-- 时间周期 - 移动端下拉框 -->
+        <div class="interval-group-mobile mobile-only">
+          <select class="toolbar-select" id="mobileIntervalSelect">
+            <option value="1m">1分</option>
+            <option value="5m" selected>5分</option>
+            <option value="15m">15分</option>
+            <option value="1h">1时</option>
+            <option value="4h">4时</option>
+            <option value="1d">日线</option>
+            <option value="1w">周线</option>
+          </select>
+        </div>
+        <!-- 图表类型 - 桌面端按钮组 -->
+        <div class="chart-type-group desktop-only">
+          <button class="chart-type-btn active" data-type="candle" title="蜡烛图">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="4" y="4" width="3" height="8" rx="0.5" />
+              <rect x="5" y="2" width="1" height="2" />
+              <rect x="5" y="12" width="1" height="2" />
+              <rect x="9" y="5" width="3" height="6" rx="0.5" />
+              <rect x="10" y="3" width="1" height="2" />
+              <rect x="10" y="11" width="1" height="2" />
+            </svg>
+          </button>
+          <button class="chart-type-btn" data-type="line" title="折线图">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polyline points="1,12 5,8 8,9 12,4 15,6" />
+            </svg>
+          </button>
+          <button class="chart-type-btn" data-type="area" title="面积图">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" opacity="0.8">
+              <path d="M1,12 L5,8 L8,9 L12,4 L15,6 L15,15 L1,15 Z" opacity="0.5" />
+              <polyline points="1,12 5,8 8,9 12,4 15,6" fill="none" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+          </button>
+        </div>
+        <!-- 图表类型 - 移动端下拉框 -->
+        <div class="chart-type-group-mobile mobile-only">
+          <select class="toolbar-select" id="mobileChartTypeSelect">
+            <option value="candle" selected>蜡烛图</option>
+            <option value="line">折线图</option>
+            <option value="area">面积图</option>
+          </select>
+        </div>
+        <!-- 技术指标 - 桌面端按钮组 -->
+        <div class="indicator-group desktop-only">
+          <button class="indicator-btn" id="toggleMA" data-active="true">MA</button>
+          <button class="indicator-btn" id="toggleBB" data-active="true">BOLL</button>
+          <button class="indicator-btn" id="toggleVOL" data-active="false">VOL</button>
+          <button class="indicator-btn" id="toggleMACD" data-active="true">MACD</button>
+          <button class="indicator-btn" id="toggleRSI" data-active="false">RSI</button>
+          <button class="indicator-btn" id="toggleSuperTrend" data-active="true">ST</button>
+          <button class="indicator-btn" id="toggleSuperTrendAvg" data-active="true">STA</button>
+          <button class="indicator-btn" id="togglePiCycleBottom" data-active="false">PI</button>
+        </div>
+        <!-- 技术指标 - 移动端自定义下拉 -->
+        <div class="indicator-group-mobile mobile-only">
+          <div class="custom-select" id="mobileIndicatorDropdown">
+            <div class="custom-select-trigger">指标 ▼</div>
+            <div class="custom-select-options">
+              <label class="custom-option"><input type="checkbox" value="MA" checked> MA</label>
+              <label class="custom-option"><input type="checkbox" value="BB" checked> BOLL</label>
+              <label class="custom-option"><input type="checkbox" value="VOL"> VOL</label>
+              <label class="custom-option"><input type="checkbox" value="MACD" checked> MACD</label>
+              <label class="custom-option"><input type="checkbox" value="RSI"> RSI</label>
+              <label class="custom-option"><input type="checkbox" value="SuperTrend" checked> ST</label>
+              <label class="custom-option"><input type="checkbox" value="SuperTrendAvg" checked> STA</label>
+              <label class="custom-option"><input type="checkbox" value="PiCycleBottom"> PI</label>
+            </div>
+          </div>
+        </div>
+        <!-- 其他操作 -->
+        <div class="toolbar-actions">
+          <button class="action-btn review-entry-btn" id="btnReview" title="进入复盘训练模式">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5,3 19,12 5,21" />
+            </svg>
+            <span>复盘</span>
+          </button>
+          <button class="action-btn" id="btnMeasure" title="测量工具">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+            <span>测量</span>
+          </button>
+          <button class="action-btn" id="btnMagnet" title="磁铁吸附">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17.5 12c0 3-2.5 5-5 5s-5-2-5-5 2.5-5 5-5 5 2 5 5z" />
+              <path d="M12 2v2" />
+              <path d="M12 20v2" />
+              <path d="M2 12h2" />
+              <path d="M20 12h2" />
+              <path d="M18.364 5.636l1.414 1.414" />
+              <path d="M18.364 18.364l1.414-1.414" />
+              <path d="M3.232 3.232l1.414 1.414" />
+              <path d="M3.232 20.768l1.414-1.414" />
+            </svg>
+            <span>磁铁</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 绘图管理面板 -->
+      <div class="drawings-panel hidden" id="drawingsPanel">
+        <div class="drawings-panel-header">
+          <span>我的绘图</span>
+          <button class="drawings-panel-close" id="btnCloseDrawingsPanel">×</button>
+        </div>
+        <div class="drawings-list" id="drawingsList"></div>
+      </div>
+
+      <!-- 复盘控制面板（默认隐藏） -->
+      <div class="review-panel hidden" id="reviewPanel">
+        <!-- 第一行：时间选择 + 加载 -->
+        <div class="review-row">
+          <span class="review-label">复盘起始</span>
+          <input type="date" id="reviewDate" class="review-date-input" />
+          <select id="reviewIntervalSelect" class="review-select">
+            <option value="1m">1分</option>
+            <option value="5m">5分</option>
+            <option value="15m">15分</option>
+            <option value="1h" selected>1小时</option>
+            <option value="4h">4小时</option>
+            <option value="1d">日线</option>
+            <option value="1w">周线</option>
+          </select>
+          <button class="review-ctrl-btn primary" id="btnLoadReview">加载复盘</button>
+          <button class="review-ctrl-btn" id="btnRandomSymbol">随机交易对</button>
+          <button class="review-ctrl-btn" id="btnRandomTime">随机时间</button>
+          <button class="review-ctrl-btn exit" id="btnExitReview">退出复盘</button>
+        </div>
+        <!-- 第二行：播放控制 + 进度 -->
+        <div class="review-row" id="reviewControls" style="display:none">
+          <div class="review-playbtns">
+            <button class="review-ctrl-btn" id="btnPrev" title="上一根 (←)">◀</button>
+            <button class="review-ctrl-btn play" id="btnPlayPause" title="播放/暂停 (空格)">▶ 播放</button>
+            <button class="review-ctrl-btn" id="btnNext" title="下一根 (→ / 空格)">▶|</button>
+          </div>
+          <div class="review-speed-group">
+            <span class="review-label">速度</span>
+            <select id="reviewSpeed" class="review-select">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="5">5x</option>
+              <option value="10">10x</option>
+            </select>
+          </div>
+          <div class="review-progress-wrap">
+            <div class="review-progress-track">
+              <div class="review-progress-bar" id="reviewProgressBar" style="width:0%"></div>
+            </div>
+            <span class="review-progress-label" id="reviewProgressLabel">0 / 0</span>
+          </div>
+          <!-- 交易操作区 -->
+          <div class="review-trade-btns">
+            <button class="review-ctrl-btn long-btn" id="btnLong">▲ 做多</button>
+            <button class="review-ctrl-btn short-btn" id="btnShort">▼ 做空</button>
+            <button class="review-ctrl-btn close-pos-btn hidden" id="btnClosePos">✕ 平仓</button>
+          </div>
+        </div>
+        <!-- 止盈止损设置弹层 -->
+        <div class="tp-sl-overlay hidden" id="tpSlOverlay">
+          <div class="tp-sl-box">
+            <div class="tp-sl-title" id="tpSlTitle">开仓设置</div>
+            <div class="tp-sl-row">
+              <label>止盈价</label>
+              <input type="number" id="inputTP" placeholder="可留空" step="any" />
+            </div>
+            <div class="tp-sl-row">
+              <label>止损价</label>
+              <input type="number" id="inputSL" placeholder="可留空" step="any" />
+            </div>
+            <div class="tp-sl-actions">
+              <button class="review-ctrl-btn" id="btnConfirmOpen">确认开仓</button>
+              <button class="review-ctrl-btn" id="btnCancelOpen">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- K线主图 Canvas -->
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <!-- 画图工具按钮组 -->
+        <div class="draw-tools-group" id="drawToolsGroup">
+          <button class="action-btn draw-tool-btn" data-tool="horizontal" title="水平线">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12" />
+            </svg>
+          </button>
+          <button class="action-btn draw-tool-btn" data-tool="vertical" title="垂直线">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="3" x2="12" y2="21" />
+            </svg>
+          </button>
+          <button class="action-btn draw-tool-btn" data-tool="trendline" title="趋势线">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="21" x2="21" y2="3" />
+            </svg>
+          </button>
+          <button class="action-btn draw-tool-btn" data-tool="rectangle" title="矩形">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+          </button>
+          <button class="action-btn draw-tool-btn" data-tool="fibonacci" title="斐波那契回调">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 21L21 3" />
+              <line x1="3" y1="15" x2="21" y2="15" />
+              <line x1="3" y1="9" x2="21" y2="9" />
+              <line x1="3" y1="3" x2="21" y2="3" />
+            </svg>
+          </button>
+        </div>
+        <!-- 指标信息面板 -->
+        <div class="indicator-panel" id="indicatorPanel">
+          <div class="indicator-panel-header">
+            <button class="indicator-panel-toggle" id="btnToggleIndicators" title="收起/展开指标">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div class="indicator-panel-content">
+            <!-- 指标信息将通过JS动态添加 -->
+          </div>
+        </div>
+        <canvas id="mainChart"></canvas>
+        <!-- 价格轴 -->
+        <div class="price-axis" id="priceAxis"></div>
+        <!-- crosshair 提示框 -->
+        <div class="tooltip" id="tooltip"></div>
+        <!-- 加载遮罩 -->
+        <div class="chart-loading" id="chartLoading">
+          <div class="spinner"></div>
+          <span>加载行情数据...</span>
+        </div>
+        <!-- 右下角工具按钮 -->
+        <div class="chart-bottom-buttons">
+          <button class="action-btn" id="btnResetChart" title="重置图表">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </button>
+          <button class="action-btn" id="btnFocusMode" title="专注模式">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </button>
+          <button class="action-btn active" id="btnAutoScaleY" title="Y轴自动缩放">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v18M3 12h18M7 8l5-5 5 5M7 16l5 5 5-5" />
+            </svg>
+          </button>
+        </div>
+        <!-- 右上角主图展开/收起按钮 -->
+        <div class="chart-top-buttons">
+          <button class="action-btn" id="btnExpandChart" title="主图展开/收起">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 3 21 3 21 9" />
+              <polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" />
+              <line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          </button>
+          <button class="action-btn" id="btnOpenDrawingsPanel" title="我的绘图">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 19l7-7 3 3-7 7-3-3z" />
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+              <path d="M2 2l7.586 7.586" />
+              <circle cx="11" cy="11" r="2" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 成交量子图 -->
+      <div class="sub-chart-wrapper hidden" id="volWrapper">
+        <!-- 指标信息面板 -->
+        <div class="indicator-panel sub-chart-indicator-panel" id="volIndicatorPanel">
+          <div class="indicator-panel-content">
+            <!-- 指标信息将通过JS动态添加 -->
+          </div>
+        </div>
+        <canvas id="volChart"></canvas>
+        <div class="sub-chart-resizer"></div>
+      </div>
+
+      <!-- MACD 子图 -->
+      <div class="sub-chart-wrapper" id="macdWrapper">
+        <!-- 指标信息面板 -->
+        <div class="indicator-panel sub-chart-indicator-panel" id="macdIndicatorPanel">
+          <div class="indicator-panel-content">
+            <!-- 指标信息将通过JS动态添加 -->
+          </div>
+        </div>
+        <canvas id="macdChart"></canvas>
+        <div class="sub-chart-resizer"></div>
+      </div>
+
+      <!-- RSI 子图 -->
+      <div class="sub-chart-wrapper hidden" id="rsiWrapper">
+        <!-- 指标信息面板 -->
+        <div class="indicator-panel sub-chart-indicator-panel" id="rsiIndicatorPanel">
+          <div class="indicator-panel-content">
+            <!-- 指标信息将通过JS动态添加 -->
+          </div>
+        </div>
+        <canvas id="rsiChart"></canvas>
+        <div class="sub-chart-resizer"></div>
+      </div>
+
+      <!-- 时间坐标轴 -->
+      <div class="time-axis" id="timeAxis"></div>
+    </main>
+
+
+    <!-- ===== 右侧盘口信息 ===== -->
+    <aside class="orderbook" id="orderbookAside">
+      <div class="orderbook-header">
+        <span>盘口</span>
+        <span class="ob-symbol" id="obSymbol">BTCUSDT</span>
+      </div>
+      <div class="ob-asks" id="obAsks">
+        <!-- 卖盘 -->
+      </div>
+      <div class="ob-spread" id="obSpread">
+        <span id="obPrice">--</span>
+        <span class="ob-spread-val" id="obSpreadVal">--</span>
+      </div>
+      <div class="ob-bids" id="obBids">
+        <!-- 买盘 -->
+      </div>
+
+      <!-- 最新成交 -->
+      <div class="trades-header">最新成交</div>
+      <div class="trades-list" id="tradesList"></div>
+
+      <!-- 24h 统计 -->
+      <div class="stats-panel" id="statsPanel">
+        <div class="stat-row"><span>24h最高</span><span id="stat24hH" class="up">--</span></div>
+        <div class="stat-row"><span>24h最低</span><span id="stat24hL" class="dn">--</span></div>
+        <div class="stat-row"><span>24h成交量</span><span id="stat24hV">--</span></div>
+        <div class="stat-row"><span>24h成交额</span><span id="stat24hQ">--</span></div>
+      </div>
+
+      <!-- ===== 复盘统计面板（默认隐藏，进入复盘时显示）===== -->
+      <div class="review-stats-panel hidden" id="reviewStatsPanel">
+        <!-- 账户概览 -->
+        <div class="rs-header">账户概览</div>
+        <div class="rs-balance-row">
+          <span>账户余额</span>
+          <span class="rs-balance" id="rsBalance">10,000.00 USDT</span>
+        </div>
+        <div class="rs-balance-row">
+          <span>浮动盈亏</span>
+          <span id="rsFloatPnl" class="rs-float">-- USDT</span>
+        </div>
+        <!-- 当前持仓 -->
+        <div class="rs-header" id="rsPositionHeader">当前持仓</div>
+        <div class="rs-position" id="rsPosition">
+          <div class="rs-no-pos">暂无持仓</div>
+        </div>
+        <!-- 复盘统计 -->
+        <div class="rs-header">本次复盘统计</div>
+        <div class="rs-stat-grid">
+          <div class="rs-stat-item"><span>总交易</span><b id="rsTotalTrades">0</b></div>
+          <div class="rs-stat-item"><span>胜率</span><b id="rsWinRate">--%</b></div>
+          <div class="rs-stat-item"><span>盈利次</span><b id="rsWinCount" class="up">0</b></div>
+          <div class="rs-stat-item"><span>亏损次</span><b id="rsLossCount" class="dn">0</b></div>
+          <div class="rs-stat-item"><span>总收益率</span><b id="rsTotalReturn">--%</b></div>
+          <div class="rs-stat-item"><span>最大回撤</span><b id="rsMaxDD" class="dn">--%</b></div>
+        </div>
+        <!-- 交易记录 -->
+        <div class="rs-header">交易记录</div>
+        <div class="rs-trades-list" id="rsTradesList">
+          <div class="rs-no-trades">暂无交易记录</div>
+        </div>
+      </div>
+    </aside>
+    <button class="orderbook-toggle-btn" id="btnToggleOrderbook" title="隐藏右侧盘口">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9,18 15,12 9,6" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- 超级趋势参数设置弹窗 -->
+  <div id="superTrendModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 320px;">
+      <div class="modal-header">
+        <h3>超级趋势参数设置</h3>
+        <button class="modal-close" id="closeSuperTrendModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>ATR 周期</label>
+          <input type="number" id="stPeriod" value="10" min="1" max="50" />
+        </div>
+        <div class="form-group">
+          <label>倍数</label>
+          <input type="number" id="stMultiplier" value="3" min="0.1" max="10" step="0.1" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelSuperTrendSettings">取消</button>
+        <button class="btn-primary" id="saveSuperTrendSettings">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MACD参数设置弹窗 -->
+  <div id="macdModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 320px;">
+      <div class="modal-header">
+        <h3>MACD参数设置</h3>
+        <button class="modal-close" id="closeMacdModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>快线周期</label>
+          <input type="number" id="macdFast" value="12" min="1" max="50" />
+        </div>
+        <div class="form-group">
+          <label>慢线周期</label>
+          <input type="number" id="macdSlow" value="26" min="1" max="100" />
+        </div>
+        <div class="form-group">
+          <label>信号周期</label>
+          <input type="number" id="macdSignal" value="9" min="1" max="50" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelMacdSettings">取消</button>
+        <button class="btn-primary" id="saveMacdSettings">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MA参数设置弹窗 -->
+  <div id="maModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>MA参数设置</h3>
+        <button class="modal-close" id="closeMaModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="ma-setting-item">
+          <div class="form-group">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label>MA1</label>
+              <input type="checkbox" id="ma1Visible" checked />
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+              <input type="number" id="ma1Period" value="7" min="1" max="200" style="flex: 1;" />
+              <input type="color" id="ma1Color" value="#f0b90b" style="width: 60px; height: 32px; padding: 0;" />
+            </div>
+          </div>
+        </div>
+        <div class="ma-setting-item">
+          <div class="form-group">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label>MA2</label>
+              <input type="checkbox" id="ma2Visible" checked />
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+              <input type="number" id="ma2Period" value="25" min="1" max="200" style="flex: 1;" />
+              <input type="color" id="ma2Color" value="#ff6b9d" style="width: 60px; height: 32px; padding: 0;" />
+            </div>
+          </div>
+        </div>
+        <div class="ma-setting-item">
+          <div class="form-group">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label>MA3</label>
+              <input type="checkbox" id="ma3Visible" checked />
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+              <input type="number" id="ma3Period" value="99" min="1" max="200" style="flex: 1;" />
+              <input type="color" id="ma3Color" value="#7b61ff" style="width: 60px; height: 32px; padding: 0;" />
+            </div>
+          </div>
+        </div>
+        <div class="ma-setting-item">
+          <div class="form-group">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label>MA4</label>
+              <input type="checkbox" id="ma4Visible" />
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+              <input type="number" id="ma4Period" value="200" min="1" max="200" style="flex: 1;" />
+              <input type="color" id="ma4Color" value="#2962ff" style="width: 60px; height: 32px; padding: 0;" />
+            </div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="font-weight: 500;">显示MA提示</label>
+            <input type="checkbox" id="maTipsVisible" checked />
+          </div>
+          <div style="margin-top: 4px; font-size: 11px; color: var(--text-secondary);">
+            显示K线上穿MA25和MA金叉的提示标记
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelMaSettings">取消</button>
+        <button class="btn-primary" id="saveMaSettings">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOLL参数设置弹窗 -->
+  <div id="bollModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 320px;">
+      <div class="modal-header">
+        <h3>BOLL参数设置</h3>
+        <button class="modal-close" id="closeBollModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>周期</label>
+          <input type="number" id="bollPeriod" value="55" min="1" max="100" />
+        </div>
+        <div class="form-group">
+          <label>倍数</label>
+          <input type="number" id="bollMult" value="2" min="0.1" max="5" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label>上轨颜色</label>
+          <input type="color" id="bollColorUpper" value="#ffc107" style="width: 60px; height: 32px; padding: 0;" />
+        </div>
+        <div class="form-group">
+          <label>中轨颜色</label>
+          <input type="color" id="bollColorMiddle" value="#ffc107" style="width: 60px; height: 32px; padding: 0;" />
+        </div>
+        <div class="form-group">
+          <label>下轨颜色</label>
+          <input type="color" id="bollColorLower" value="#ffc107" style="width: 60px; height: 32px; padding: 0;" />
+        </div>
+        <div class="form-group">
+          <label>背景颜色</label>
+          <input type="color" id="bollColorBackground" value="#ffc107" style="width: 60px; height: 32px; padding: 0;" />
+          <input type="number" id="bollColorOpacity" value="0.05" min="0" max="1" step="0.01"
+            style="flex: 1; margin-left: 8px;" />
+          <span style="margin-left: 8px; font-size: 12px; color: var(--text-secondary);">透明度</span>
+        </div>
+        <div class="form-group">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="font-weight: 500;">显示背景</label>
+            <input type="checkbox" id="bollShowBackground" checked />
+          </div>
+          <div style="margin-top: 4px; font-size: 11px; color: var(--text-secondary);">
+            显示BOLL通道背景
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelBollSettings">取消</button>
+        <button class="btn-primary" id="saveBollSettings">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RSI参数设置弹窗 -->
+  <div id="rsiModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 320px;">
+      <div class="modal-header">
+        <h3>RSI参数设置</h3>
+        <button class="modal-close" id="closeRsiModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>周期</label>
+          <input type="number" id="rsiPeriod" value="14" min="1" max="50" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelRsiSettings">取消</button>
+        <button class="btn-primary" id="saveRsiSettings">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Volume参数设置弹窗 -->
+  <div id="volumeModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 320px;">
+      <div class="modal-header">
+        <h3>Volume参数设置</h3>
+        <button class="modal-close" id="closeVolumeModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>显示方式</label>
+          <select id="volumeType" class="toolbar-select">
+            <option value="bar" selected>柱状图</option>
+            <option value="line">折线图</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelVolumeSettings">取消</button>
+        <button class="btn-primary" id="saveVolumeSettings">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
