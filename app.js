@@ -808,11 +808,47 @@ class ChartRenderer {
     return closestPrice;
   }
 
-  // 获取K线索引从X坐标
+  // 获取K线索引从X坐标（支持未来区域）
   _getBarIndexFromX(x) {
     if (!this.mainSize || !this.barW) return 0;
     const { startIdx } = this._getVisibleRange();
-    return Math.floor(x / this.barW) + startIdx;
+    // 使用 Math.round 代替 Math.floor 避免浮点数精度问题
+    return Math.round(x / this.barW) + startIdx;
+  }
+
+  // 通过时间戳获取K线索引（二分查找，支持未来时间）
+  _getBarIndexFromTime(time) {
+    if (!this.data || this.data.length === 0) return 0;
+
+    // 如果是未来时间，返回估算的索引
+    const lastTime = this.data[this.data.length - 1].time;
+    if (time > lastTime) {
+      // 计算平均K线间隔
+      const avgInterval =
+        this.data.length > 1 ? (lastTime - this.data[0].time) / (this.data.length - 1) : 3600000;
+      // 估算未来索引
+      return this.data.length - 1 + Math.ceil((time - lastTime) / avgInterval);
+    }
+
+    // 历史时间：使用二分查找
+    let left = 0;
+    let right = this.data.length - 1;
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (this.data[mid].time < time) {
+        left = mid + 1;
+      } else if (this.data[mid].time > time) {
+        right = mid - 1;
+      } else {
+        return mid;
+      }
+    }
+    // 如果没有精确匹配，返回最接近的索引
+    if (left >= this.data.length) return this.data.length - 1;
+    if (right < 0) return 0;
+    return Math.abs(time - this.data[left]?.time) < Math.abs(time - this.data[right]?.time)
+      ? left
+      : right;
   }
 
   // 获取价格从Y坐标
@@ -928,15 +964,19 @@ class ChartRenderer {
         // 计算最近的K线索引并对齐到K线中心
         const barIndex = Math.floor(x / this.barW) + startIdx;
         // 计算K线中心的X坐标
-        const barCenterX = (barIndex - startIdx) * this.barW + this.candleW / 2;
+        let barCenterX = (barIndex - startIdx) * this.barW + this.candleW / 2;
         // 根据K线中心的X坐标重新计算Y坐标和价格
-        const barCenterY = y;
+        let barCenterY = y;
         let price =
           priceRange.max - (barCenterY / this.mainSize.h) * (priceRange.max - priceRange.min);
 
         // 磁铁模式：吸附到最近的OHLC价格
-        if (this.magnetMode) {
+        if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
           price = this._getMagnetPrice(price, barIndex);
+          // 更新Y坐标为吸附后的价格对应的位置
+          barCenterY =
+            this.mainSize.h -
+            ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
         }
 
         const time = this.data[barIndex]?.time;
@@ -971,22 +1011,37 @@ class ChartRenderer {
         if (!this.mainSize || !this.mainSize.h || !this.barW) return;
         const priceRange = this._getPriceRange();
         if (!priceRange || priceRange.max === priceRange.min) return;
-        const { startIdx } = this._getVisibleRange();
-        // 计算最近的K线索引并对齐到K线中心
-        const barIndex = Math.floor(x / this.barW) + startIdx;
-        // 计算K线中心的X坐标
-        const barCenterX = (barIndex - startIdx) * this.barW + this.candleW / 2;
-        // 根据K线中心的X坐标重新计算Y坐标和价格
-        const barCenterY = y;
+        const barIndex = this._getBarIndexFromX(x);
+        let barCenterX =
+          (barIndex - this._getVisibleRange().startIdx) * this.barW + this.candleW / 2;
+        let barCenterY = y;
         let price =
           priceRange.max - (barCenterY / this.mainSize.h) * (priceRange.max - priceRange.min);
 
-        // 磁铁模式：吸附到最近的OHLC价格
-        if (this.magnetMode) {
+        // 磁铁模式：吸附到最近的OHLC价格（仅在有数据时）
+        if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
           price = this._getMagnetPrice(price, barIndex);
+          // 更新Y坐标为吸附后的价格对应的位置
+          barCenterY =
+            this.mainSize.h -
+            ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
         }
 
-        const time = this.data[barIndex]?.time;
+        // 获取时间戳（如果索引超出范围，使用估算值）
+        let time;
+        if (barIndex >= 0 && barIndex < this.data.length) {
+          time = this.data[barIndex].time;
+        } else if (barIndex >= this.data.length && this.data.length > 0) {
+          // 未来区域：使用最后一个K线的时间加预估间隔
+          const lastBar = this.data[this.data.length - 1];
+          const avgInterval =
+            this.data.length > 1
+              ? (lastBar.time - this.data[0].time) / (this.data.length - 1)
+              : 3600000;
+          time = lastBar.time + avgInterval * (barIndex - this.data.length + 1);
+        } else {
+          time = Date.now();
+        }
 
         if (!this.measureStart) {
           // 第一次点击：设置起点
@@ -1054,19 +1109,37 @@ class ChartRenderer {
         if (!this.mainSize || !this.mainSize.h || !this.barW) return;
         const priceRange = this._getPriceRange();
         if (!priceRange || priceRange.max === priceRange.min) return;
-        const { startIdx } = this._getVisibleRange();
-        const barIndex = Math.floor(x / this.barW) + startIdx;
-        const barCenterX = (barIndex - startIdx) * this.barW + this.candleW / 2;
-        const barCenterY = y;
+        const barIndex = this._getBarIndexFromX(x);
+        let barCenterX =
+          (barIndex - this._getVisibleRange().startIdx) * this.barW + this.candleW / 2;
+        let barCenterY = y;
         let price =
           priceRange.max - (barCenterY / this.mainSize.h) * (priceRange.max - priceRange.min);
 
-        // 磁铁模式：吸附到最近的OHLC价格
-        if (this.magnetMode) {
+        // 磁铁模式：吸附到最近的OHLC价格（仅在有数据时）
+        if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
           price = this._getMagnetPrice(price, barIndex);
+          // 更新Y坐标为吸附后的价格对应的位置
+          barCenterY =
+            this.mainSize.h -
+            ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
         }
 
-        const time = this.data[barIndex]?.time;
+        // 获取时间戳（如果索引超出范围，使用估算值）
+        let time;
+        if (barIndex >= 0 && barIndex < this.data.length) {
+          time = this.data[barIndex].time;
+        } else if (barIndex >= this.data.length && this.data.length > 0) {
+          // 未来区域：使用最后一个K线的时间加预估间隔
+          const lastBar = this.data[this.data.length - 1];
+          const avgInterval =
+            this.data.length > 1
+              ? (lastBar.time - this.data[0].time) / (this.data.length - 1)
+              : 3600000; // 默认1小时
+          time = lastBar.time + avgInterval * (barIndex - this.data.length + 1);
+        } else {
+          time = Date.now();
+        }
 
         if (!this.drawStart) {
           // 第一次点击：设置起点
@@ -1077,9 +1150,36 @@ class ChartRenderer {
             time,
             barIndex,
           };
-          this.drawPreview = null;
+
+          // 水平线和垂直线只需要一次点击
+          if (this.drawTool === 'horizontal' || this.drawTool === 'vertical') {
+            const drawing = {
+              type: this.drawTool,
+              start: {
+                barIndex: this.drawStart.barIndex,
+                price: this.drawStart.price,
+                time: this.drawStart.time,
+              },
+              end: {
+                barIndex: barIndex,
+                price: price,
+                time: time,
+              },
+            };
+            this.drawings.push(drawing);
+            this.drawStart = null;
+            this.drawPreview = null;
+
+            // 自动关闭画图模式
+            this.drawMode = false;
+
+            // 取消按钮高亮
+            const toolBtns = document.querySelectorAll('.draw-tool-btn');
+            toolBtns.forEach((b) => b.classList.remove('active'));
+            return;
+          }
         } else if (this.drawStart) {
-          // 第二次点击：完成绘图
+          // 第二次点击：完成绘图（趋势线、矩形、斐波那契）
           const drawing = {
             type: this.drawTool,
             start: {
@@ -3520,9 +3620,11 @@ class ChartRenderer {
     // 渲染保存的绘图
     if (this.drawings.length > 0) {
       this.drawings.forEach((drawing) => {
-        const { startIdx, endIdx } = this._getVisibleRange();
-        const startBarIndex = drawing.start.barIndex;
-        const endBarIndex = drawing.end.barIndex;
+        // 使用时间戳获取正确的K线索引（支持周期切换）
+        const startBarIndex = this._getBarIndexFromTime(drawing.start.time);
+        const endBarIndex = this._getBarIndexFromTime(drawing.end.time);
+
+        const { startIdx } = this._getVisibleRange();
         const startX = (startBarIndex - startIdx) * this.barW + this.candleW / 2;
         const endX = (endBarIndex - startIdx) * this.barW + this.candleW / 2;
         const startY = h - ((drawing.start.price - priceLo) / priceRange) * h;
@@ -3598,13 +3700,6 @@ class ChartRenderer {
             '#ff9800',
           ];
 
-          const startBarIndex = drawing.start.barIndex;
-          const endBarIndex = drawing.end.barIndex;
-          const startX = (startBarIndex - startIdx) * this.barW + this.candleW / 2;
-          const endX = (endBarIndex - startIdx) * this.barW + this.candleW / 2;
-          const startY = h - ((drawing.start.price - priceLo) / priceRange) * h;
-          const endY = h - ((drawing.end.price - priceLo) / priceRange) * h;
-
           const topY = Math.min(startY, endY);
           const bottomY = Math.max(startY, endY);
           const height = bottomY - topY;
@@ -3617,6 +3712,15 @@ class ChartRenderer {
             if (p >= 1) return p.toFixed(4);
             return p.toFixed(6);
           };
+
+          // 绘制对角虚线（连接起点和终点）
+          ctx.setLineDash([5, 5]);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(endX, endY);
+          ctx.stroke();
 
           ctx.setLineDash([]);
           fibLevels.forEach((level, i) => {
@@ -3631,27 +3735,38 @@ class ChartRenderer {
             ctx.fillText(`${fibLabels[i]} ${fmtPrice(fibPrice)}`, leftX - 4, y + 3);
             // 计算文字宽度，让线从文字后面开始
             const textWidth = ctx.measureText(`${fibLabels[i]} ${fmtPrice(fibPrice)}`).width;
-            // 再绘制线段（从标签右侧开始）
+            // 绘制线段向右延伸到图表边缘
             ctx.beginPath();
             ctx.moveTo(leftX - 4 + textWidth + 4, y);
-            ctx.lineTo(Math.max(startX, endX), y);
+            ctx.lineTo(chartW, y);
             ctx.stroke();
           });
         }
       });
     }
 
-    // 渲染画图预览
-    if (this.drawMode && this.drawStart) {
+    // 渲染画图预览（水平线和垂直线不需要预览，因为一次点击就完成）
+    if (
+      this.drawMode &&
+      this.drawStart &&
+      this.drawTool !== 'horizontal' &&
+      this.drawTool !== 'vertical'
+    ) {
+      const chartW = this.mainSize.w - this.priceAxisW;
       const { startIdx } = this._getVisibleRange();
       const barIndex = this._getBarIndexFromX(this.mouseX);
-      const currentX = (barIndex - startIdx) * this.barW + this.candleW / 2;
-      const currentY = this.mouseY;
+      let currentX = (barIndex - startIdx) * this.barW + this.candleW / 2;
+      let currentY = this.mouseY;
       let currentPrice = this._getPriceFromY(currentY);
 
-      // 磁铁模式
-      if (this.magnetMode) {
+      // 磁铁模式：吸附到最近的OHLC价格
+      if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
         currentPrice = this._getMagnetPrice(currentPrice, barIndex);
+        // 更新Y坐标为吸附后的价格对应的位置
+        const priceRange = this._getPriceRange();
+        currentY =
+          this.mainSize.h -
+          ((currentPrice - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
       }
 
       ctx.strokeStyle = '#ff5722';
@@ -3729,6 +3844,15 @@ class ChartRenderer {
           return p.toFixed(6);
         };
 
+        // 绘制对角虚线（连接起点和终点）
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(this.drawStart.x, this.drawStart.y);
+        ctx.lineTo(currentX, currentY);
+        ctx.stroke();
+
         ctx.setLineDash([]);
         fibLevels.forEach((level, i) => {
           const y = topY + height * level;
@@ -3742,10 +3866,10 @@ class ChartRenderer {
           ctx.fillText(`${fibLabels[i]} ${fmtPrice(fibPrice)}`, leftX - 4, y + 3);
           // 计算文字宽度，让线从文字后面开始
           const textWidth = ctx.measureText(`${fibLabels[i]} ${fmtPrice(fibPrice)}`).width;
-          // 再绘制线段（从标签右侧开始）
+          // 绘制线段向右延伸到图表边缘
           ctx.beginPath();
           ctx.moveTo(leftX - 4 + textWidth + 4, y);
-          ctx.lineTo(Math.max(startX, endX), y);
+          ctx.lineTo(chartW, y);
           ctx.stroke();
         });
       }
@@ -6663,7 +6787,12 @@ class App {
     if (drawToolsGroup) {
       const toolBtns = drawToolsGroup.querySelectorAll('.draw-tool-btn');
       toolBtns.forEach((btn) => {
+        btn.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
         btn.addEventListener('click', (e) => {
+          e.stopPropagation();
           const tool = btn.dataset.tool;
           // 如果点击的是同一个工具按钮，切换画图模式
           if (this.renderer.drawTool === tool && this.renderer.drawMode) {
