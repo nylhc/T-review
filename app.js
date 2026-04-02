@@ -605,6 +605,7 @@ class ChartRenderer {
     this.drawings = []; // 保存的绘图数组
     this.drawStart = null; // 绘图起点
     this.drawPreview = null; // 绘图预览
+    this._loadDrawings(); // 从本地存储加载绘图
 
     // 指标参数
     this.bollPeriod = 55;
@@ -859,6 +860,28 @@ class ChartRenderer {
     return priceRange.max - (y / this.mainSize.h) * (priceRange.max - priceRange.min);
   }
 
+  // 保存绘图到本地存储
+  _saveDrawings() {
+    try {
+      localStorage.setItem('kline_drawings', JSON.stringify(this.drawings));
+    } catch (e) {
+      console.warn('Failed to save drawings:', e);
+    }
+  }
+
+  // 从本地存储加载绘图
+  _loadDrawings() {
+    try {
+      const saved = localStorage.getItem('kline_drawings');
+      if (saved) {
+        this.drawings = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Failed to load drawings:', e);
+      this.drawings = [];
+    }
+  }
+
   // 更新绘图列表面板
   _updateDrawingsPanel() {
     const drawingsList = document.getElementById('drawingsList');
@@ -913,6 +936,7 @@ class ChartRenderer {
       btn.addEventListener('click', (e) => {
         const index = parseInt(e.target.dataset.index);
         this.drawings.splice(index, 1);
+        this._saveDrawings();
         this._updateDrawingsPanel();
         this.renderAll();
       });
@@ -1167,6 +1191,7 @@ class ChartRenderer {
               },
             };
             this.drawings.push(drawing);
+            this._saveDrawings();
             this.drawStart = null;
             this.drawPreview = null;
 
@@ -1194,6 +1219,7 @@ class ChartRenderer {
             },
           };
           this.drawings.push(drawing);
+          this._saveDrawings();
           this.drawStart = null;
           this.drawPreview = null;
 
