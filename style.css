@@ -958,6 +958,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  box-sizing: border-box;
   /* 触摸反馈 */
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -1033,48 +1036,83 @@ body.mobile .mobile-only {
 
 /* 移动端优化 - 使用 JS 检测的 body.mobile 类名 */
 body.mobile .action-btn {
-  min-width: 40px !important;
-  min-height: 40px !important;
-  padding: 8px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  padding: 4px !important;
 }
 
 body.mobile .chart-bottom-buttons {
-  right: 50px;
-  bottom: 8px;
-  gap: 4px;
+  right: 30px;
+  bottom: 4px;
+  gap: 2px;
 }
 
 body.mobile .chart-bottom-buttons .action-btn,
 body.mobile .chart-top-buttons .action-btn {
-  min-width: 44px !important;
-  min-height: 44px !important;
-  padding: 8px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 4px !important;
   position: relative;
   z-index: 100;
 }
 
 body.mobile .chart-bottom-buttons .action-btn svg,
 body.mobile .chart-top-buttons .action-btn svg {
-  width: 16px !important;
-  height: 16px !important;
+  width: 12px !important;
+  height: 12px !important;
 }
 
 body.mobile .chart-top-buttons {
-  right: 50px;
-  top: 8px;
-  gap: 4px;
+  right: 30px;
+  top: 4px;
+  gap: 2px;
+}
+
+body.mobile .draw-tools-group {
+  top: 4px;
+  padding: 2px 4px;
+  gap: 1px;
+}
+
+body.mobile .draw-tool-btn {
+  padding: 3px 5px !important;
+  min-width: 24px;
+  font-size: 10px;
+}
+
+body.mobile .drawings-panel {
+  width: 80vw;
+  max-width: 280px;
+  right: 5px;
+  left: auto;
+  top: 40px;
+  transform: none;
+}
+
+body.mobile .drawings-panel-header {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+body.mobile .drawings-list {
+  max-height: 40vh;
+}
+
+body.mobile .drawing-item {
+  padding: 5px 6px;
+  font-size: 11px;
 }
 
 body.mobile .indicator-btn,
 body.mobile .interval-btn,
 body.mobile .chart-type-btn {
-  padding: 6px 10px !important;
-  font-size: 13px !important;
+  padding: 3px 6px !important;
+  font-size: 10px !important;
 }
 
 body.mobile .search-box {
-  width: 180px !important;
-  height: 36px !important;
+  width: 120px !important;
+  height: 28px !important;
 }
 
 body.mobile .price-info {
@@ -1090,6 +1128,51 @@ body.mobile .ohlcv-info {
   margin-left: 0;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+body.mobile .indicator-panel {
+  top: 4px;
+  left: 4px;
+  padding: 2px;
+  min-width: 180px;
+}
+
+body.mobile .indicator-item {
+  height: 12px;
+  font-size: 9px;
+  line-height: 12px;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+body.mobile .indicator-name {
+  font-size: 7px;
+  min-width: 40px;
+}
+
+body.mobile .indicator-values {
+  font-size: 8px;
+  gap: 6px;
+}
+
+body.mobile .indicator-value {
+  font-size: 9px;
+  min-width: 80px;
+}
+
+body.mobile .indicator-color {
+  width: 6px;
+  height: 6px;
+}
+
+body.mobile .indicator-settings svg {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+body.mobile .indicator-settings {
+  margin-left: 2px;
+  padding: 1px;
 }
 
 body.mobile .canvas-wrapper {
