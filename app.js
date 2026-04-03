@@ -2241,14 +2241,15 @@ class ChartRenderer {
     this.mouseBar = startIdx + barIdx;
     // 检查是否在有效K线范围内
     const isInValidRange = this.mouseBar >= 0 && this.mouseBar < this.data.length;
-    if (isInValidRange) {
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isInValidRange && isTouchDevice) {
       // 如果鼠标悬停在最新 K 线上，使用实时数据
       const isLastBar = this.mouseBar === this.data.length - 1;
       const bar = isLastBar ? this.data[this.data.length - 1] : this.data[this.mouseBar];
       this._showTooltip(bar, isLastBar);
       this._updateOHLCVInfo(bar);
     } else {
-      // 鼠标位置没有 K 线，隐藏 tooltip
+      // PC端不显示tooltip，或鼠标位置没有K线，隐藏tooltip
       document.getElementById('tooltip').style.display = 'none';
     }
     // 更新指标面板，确保数据绑定正确
@@ -2345,6 +2346,41 @@ class ChartRenderer {
     } else {
       // 如果没有选中K线，使用最后一个K线
       selectedBarIndex = this.data?.length - 1 || -1;
+    }
+
+    // 显示K线数据（OHLCV）
+    if (selectedBarIndex >= 0 && this.data?.[selectedBarIndex]) {
+      const bar = this.data[selectedBarIndex];
+      const chg = (((bar.close - bar.open) / bar.open) * 100).toFixed(2);
+      const sign = chg >= 0 ? '+' : '';
+      const amplitude = (((bar.high - bar.low) / bar.open) * 100).toFixed(2);
+      const changeAmount = (bar.close - bar.open).toFixed(6);
+      const changeAmountSign = changeAmount >= 0 ? '+' : '';
+      const turnover = (bar.close * bar.volume).toFixed(2);
+
+      const ohlcvGroup = document.createElement('div');
+      ohlcvGroup.className = 'indicator-item ohlcv-group';
+      ohlcvGroup.innerHTML = `
+        <span style="color:var(--text-secondary);font-size:9px;">开</span>
+        <span style="color:var(--text-primary);margin-right:2px;">${fmtPrice(bar.open)}</span>
+        <span style="color:var(--text-secondary);font-size:9px;">高</span>
+        <span style="color:var(--up);margin-right:2px;">${fmtPrice(bar.high)}</span>
+        <span style="color:var(--text-secondary);font-size:9px;">低</span>
+        <span style="color:var(--dn);margin-right:2px;">${fmtPrice(bar.low)}</span>
+        <span style="color:var(--text-secondary);font-size:9px;">收</span>
+        <span style="color:${chg >= 0 ? 'var(--up)' : 'var(--dn)'};margin-right:2px;">${fmtPrice(bar.close)}</span>
+        <span style="color:var(--text-secondary);font-size:9px;">量</span>
+        <span style="color:#f0b90b;margin-right:4px;">${fmt(bar.volume)}</span>
+        <span style="color:var(--text-secondary);font-size:9px;">涨跌</span>
+        <span style="color:${chg >= 0 ? 'var(--up)' : 'var(--dn)'};margin-right:2px;">${sign}${chg}%</span>
+        <span style="color:var(--text-secondary);font-size:9px;">涨跌额</span>
+        <span style="color:${parseFloat(changeAmount) >= 0 ? 'var(--up)' : 'var(--dn)'};margin-right:2px;">${changeAmountSign}${fmtPrice(parseFloat(changeAmount))}</span>
+        <span style="color:var(--text-secondary);font-size:9px;">振幅</span>
+        <span style="color:${amplitude > 5 ? 'var(--accent)' : amplitude > 2 ? 'var(--text-primary)' : 'var(--text-secondary)'};margin-right:2px;">${amplitude}%</span>
+        <span style="color:var(--text-secondary);font-size:9px;">交易额</span>
+        <span style="color:var(--text-primary);">${fmt(parseFloat(turnover))}</span>
+      `;
+      content.appendChild(ohlcvGroup);
     }
 
     // 显示MA指标（作为一个组合）

@@ -823,14 +823,16 @@ body {
   gap: 8px;
   padding: 0 8px;
   margin: 0;
-  height: 16px;
+  height: 14px;
   border-radius: 4px;
-  font-size: 10px;
-  line-height: 16px;
+  font-size: 11px;
+  line-height: 14px;
   color: var(--text-primary);
   white-space: nowrap;
   transition: background 0.15s;
   border: 1px solid transparent;
+  width: min-content;
+  flex-shrink: 0;
 }
 
 .indicator-item:hover {
@@ -840,10 +842,10 @@ body {
 .indicator-name {
   font-weight: 500;
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  min-width: 60px;
+  min-width: 50px;
   font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -851,9 +853,9 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1;
+  flex: 0 0 auto;
   font-family: monospace;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-primary);
 }
 
@@ -1685,9 +1687,9 @@ body.review-mode .review-entry-btn {
   display: flex;
   gap: 2px;
   padding: 4px 8px;
-  background: var(--bg-secondary);
+  background: rgba(30, 35, 45, 0.5);
   border-radius: var(--radius);
-  z-index: 10;
+  z-index: 100;
 }
 
 .draw-tool-btn {
