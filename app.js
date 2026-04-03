@@ -147,9 +147,8 @@ const fmtTime = (ts, interval) => {
 const fmtDateFull = (ts) => {
   const d = new Date(ts);
   const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  return `周${weekdays[d.getDay()]} ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 /* ============================================================
@@ -1335,7 +1334,10 @@ class ChartRenderer {
             const delta = Math.round(e.deltaX / this.barW);
             const maxOffset = this.data.length - this._visibleBars() + 5;
             // 允许负数offset（用于居中显示），但限制最大偏移量
-            this.offset = Math.max(-this._visibleBars(), Math.min(maxOffset, this.offset - delta));
+            this.offset = Math.max(
+              -this._visibleBars() + 1,
+              Math.min(maxOffset, this.offset - delta),
+            );
           }
           this.renderAll();
         },
@@ -1390,7 +1392,10 @@ class ChartRenderer {
             const delta = Math.round(e.deltaX / this.barW);
             const maxOffset = this.data.length - this._visibleBars() + 5;
             // 允许负数offset（用于居中显示），但限制最大偏移量
-            this.offset = Math.max(-this._visibleBars(), Math.min(maxOffset, this.offset - delta));
+            this.offset = Math.max(
+              -this._visibleBars() + 1,
+              Math.min(maxOffset, this.offset - delta),
+            );
           }
           this.renderAll();
         },
@@ -1445,7 +1450,10 @@ class ChartRenderer {
             const delta = Math.round(e.deltaX / this.barW);
             const maxOffset = this.data.length - this._visibleBars() + 5;
             // 允许负数offset（用于居中显示），但限制最大偏移量
-            this.offset = Math.max(-this._visibleBars(), Math.min(maxOffset, this.offset - delta));
+            this.offset = Math.max(
+              -this._visibleBars() + 1,
+              Math.min(maxOffset, this.offset - delta),
+            );
           }
           this.renderAll();
         },
@@ -1524,7 +1532,7 @@ class ChartRenderer {
           const delta = Math.round(dx / this.barW);
           const maxOffset = this.data.length - this._visibleBars() + 5;
           this.offset = Math.max(
-            -this._visibleBars(),
+            -this._visibleBars() + 1,
             Math.min(maxOffset, this.dragStartOffset + delta),
           );
           // 检查是否需要加载历史数据
@@ -1598,7 +1606,10 @@ class ChartRenderer {
           const delta = Math.round(e.deltaX / this.barW);
           const maxOffset = this.data.length - this._visibleBars() + 5;
           // 允许负数offset（用于居中显示），但限制最大偏移量
-          this.offset = Math.max(-this._visibleBars(), Math.min(maxOffset, this.offset - delta));
+          this.offset = Math.max(
+            -this._visibleBars() + 1,
+            Math.min(maxOffset, this.offset - delta),
+          );
           // 检查是否需要加载历史数据
           this._checkNeedLoadHistory();
         }
@@ -1680,7 +1691,7 @@ class ChartRenderer {
             // 使用浮点 offset 实现亚像素精度平移
             const deltaF = dx / this.barW;
             const maxOffset = this.data.length - this._visibleBars() + 5;
-            const minOffset = -this._visibleBars();
+            const minOffset = -this._visibleBars() + 1;
             this.offsetF = Math.max(minOffset, Math.min(maxOffset, this.offsetF + deltaF));
             this.offset = Math.round(this.offsetF);
 
@@ -1828,7 +1839,7 @@ class ChartRenderer {
       velocity *= FRICTION;
 
       const maxOffset = this.data.length - this._visibleBars() + 5;
-      const minOffset = -this._visibleBars();
+      const minOffset = -this._visibleBars() + 1;
       this.offsetF = Math.max(minOffset, Math.min(maxOffset, this.offsetF + velocity));
       const newOffset = Math.round(this.offsetF);
 
@@ -4481,10 +4492,18 @@ class ChartRenderer {
     const nextBarTime = Math.ceil(now / intervalMs) * intervalMs;
     const remaining = nextBarTime - now;
     if (remaining <= 0) return null;
-    const minutes = Math.floor(remaining / 60000);
-    const seconds = Math.floor((remaining % 60000) / 1000);
+    const seconds = Math.floor(remaining / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (days > 0) {
+      return `${days}d ${hours % 24}h ${minutes % 60}m ${seconds % 60}s`;
+    }
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+    }
     if (minutes > 0) {
-      return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+      return `${minutes}m ${seconds % 60}s`;
     }
     return `${seconds}s`;
   }
@@ -4510,23 +4529,75 @@ class ChartRenderer {
     const { startIdx, endIdx } = this._getVisibleRange();
     const bars = this.data.slice(startIdx, endIdx);
     const chartW = (this.mainSize?.w || 800) - this.priceAxisW;
+    const intervalMs = this._getIntervalMs(this.interval);
 
-    // 优化步长计算，确保标签之间有足够的间距（至少30px）
+    // 优化步长计算，确保标签之间有足够的间距（至少minLabelSpacing像素）
     const minLabelSpacing = 30;
-    const estimatedLabelWidth = 40; // 估算每个时间标签的宽度
-    const totalLabels = Math.max(1, Math.floor(chartW / (minLabelSpacing + estimatedLabelWidth)));
-    const step = Math.max(1, Math.round(bars.length / totalLabels));
+    const estimatedLabelWidth = 40;
+    const minPixelStep = minLabelSpacing + estimatedLabelWidth;
+    const rawStep = Math.ceil(minPixelStep / this.barW);
+    let step = Math.max(2, rawStep);
+    // 当可见K线很少时，进一步增大step避免重叠
+    if (bars.length > 0 && bars.length < 5) {
+      step = Math.max(step, Math.ceil(bars.length / 2));
+    }
 
     let html = '';
+    let lastX = -Infinity;
     bars.forEach((bar, i) => {
       if (i % step !== 0) return;
       const x = i * this.barW + this.candleW / 2;
-      if (x > chartW) return;
+      if (x < 0 || x > chartW || x - lastX < minLabelSpacing) return;
+      lastX = x;
       html += `<div class="time-tick" style="left:${x}px">${fmtTime(
         bar.time,
         this.interval,
       )}</div>`;
     });
+
+    // 延伸未来时间线
+    const lastBar = this.data[this.data.length - 1];
+    if (intervalMs && this.data.length > 0) {
+      const lastTime = lastBar.time;
+      const nextBarTime = Math.ceil(Date.now() / intervalMs) * intervalMs;
+      const visibleEndTime = lastTime + (endIdx - this.data.length) * intervalMs;
+      let futureIdx = bars.length;
+      const remainder = futureIdx % step;
+      if (remainder !== 0) futureIdx += step - remainder;
+      let futureTime = nextBarTime + (futureIdx - bars.length) * intervalMs;
+      while (futureTime <= visibleEndTime + intervalMs * step * 2) {
+        const x = futureIdx * this.barW + this.candleW / 2;
+        if (x >= 0 && x <= chartW && x - lastX >= minLabelSpacing) {
+          lastX = x;
+          html += `<div class="time-tick future" style="left:${x}px">${fmtTime(
+            futureTime,
+            this.interval,
+          )}</div>`;
+        }
+        futureTime += intervalMs * step;
+        futureIdx += step;
+      }
+    }
+
+    // 光标处时间标签（底部居中）
+    if (this.mouseX >= 0 && this.mouseX < chartW) {
+      const barIdx = Math.floor(this.mouseX / this.barW);
+      const barIndex = startIdx + barIdx;
+      let cursorTime;
+      if (barIndex >= 0 && barIndex < this.data.length) {
+        cursorTime = this.data[barIndex].time;
+      } else if (barIndex >= this.data.length && intervalMs) {
+        const excessIdx = barIndex - this.data.length + 1;
+        cursorTime = lastBar.time + excessIdx * intervalMs;
+      }
+      if (cursorTime) {
+        const cursorX = barIdx * this.barW + this.candleW / 2;
+        if (cursorX >= 0 && cursorX <= chartW) {
+          html += `<div class="time-tick cursor-time" style="left:${cursorX}px;transform:translateX(-50%);bottom:0;background:rgba(38,166,154,0.95);color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:500;">${fmtDateFull(cursorTime)}</div>`;
+        }
+      }
+    }
+
     axis.innerHTML = html;
   }
 }
