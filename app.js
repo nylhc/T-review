@@ -951,6 +951,7 @@ class ChartRenderer {
       // 统一使用触摸事件处理，避免移动端点击延迟
       const handleExpand = (e) => {
         e.preventDefault();
+        e.stopPropagation();
         this.toggleChartExpand();
       };
       btnExpand.addEventListener('click', handleExpand);
@@ -1645,6 +1646,18 @@ class ChartRenderer {
           lastTouchY = e.touches[0].clientY;
           // 同步浮点offset
           this.offsetF = this.offset;
+
+          // 测量模式：触摸开始时设置起点或终点
+          if (this.measureMode) {
+            // 重置预览数据
+            this.measurePreview = null;
+            // 已经有起点了，这次触摸应该设置终点
+            if (this.measureStart && this.measureEnd) {
+              // 重置测量状态，开始新的测量
+              this.measureStart = null;
+              this.measureEnd = null;
+            }
+          }
         }
         if (e.touches.length === 2) {
           lastPinchDist = Math.hypot(
@@ -1674,8 +1687,140 @@ class ChartRenderer {
 
           const rect = wrapper.getBoundingClientRect();
 
-          // 十字光标显示状态下：拖动仅移动光标，不平移图表
-          if (this.showCrosshair) {
+          // 测量模式：始终更新鼠标坐标用于预览
+          if (this.measureMode) {
+            this.mouseX = e.touches[0].clientX - rect.left;
+            this.mouseY = e.touches[0].clientY - rect.top;
+
+            // 步进式光标：吸附到K线中心
+            if (!this.mainSize || !this.mainSize.h || !this.barW) return;
+            const priceRange = this._getPriceRange();
+            if (!priceRange || priceRange.max === priceRange.min) return;
+            const { startIdx } = this._getVisibleRange();
+            // 使用 Math.round 找到最近的K线索引
+            const barIndex = Math.round(this.mouseX / this.barW) + startIdx;
+
+            // X轴步进：吸附到K线中心
+            this.mouseX = (barIndex - startIdx) * this.barW + this.candleW / 2;
+
+            // Y轴步进：如果开启磁铁模式，吸附到最近的OHLC价格
+            if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
+              let price =
+                priceRange.max -
+                (this.mouseY / this.mainSize.h) * (priceRange.max - priceRange.min);
+              price = this._getMagnetPrice(price, barIndex);
+              this.mouseY =
+                this.mainSize.h -
+                ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
+            }
+
+            // 预览测量终点
+            if (this.measureStart) {
+              if (!this.mainSize || !this.mainSize.h || !this.barW) return;
+              const priceRange = this._getPriceRange();
+              if (!priceRange || priceRange.max === priceRange.min) return;
+              const { startIdx } = this._getVisibleRange();
+              // 使用 Math.round 找到最近的K线索引
+              const barIndex = Math.round(this.mouseX / this.barW) + startIdx;
+              let barCenterX = (barIndex - startIdx) * this.barW + this.candleW / 2;
+              let barCenterY = this.mouseY;
+              let price =
+                priceRange.max - (barCenterY / this.mainSize.h) * (priceRange.max - priceRange.min);
+
+              if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
+                price = this._getMagnetPrice(price, barIndex);
+                barCenterY =
+                  this.mainSize.h -
+                  ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
+              }
+
+              const time = this.data[barIndex]?.time;
+
+              // 使用临时变量进行预览，不直接设置 measureEnd
+              this.measurePreview = {
+                x: barCenterX,
+                y: barCenterY,
+                price,
+                time,
+                barIndex,
+              };
+            }
+
+            this.renderAll();
+          } else if (this.drawMode) {
+            // 画图模式：更新鼠标坐标用于预览
+            this.mouseX = e.touches[0].clientX - rect.left;
+            this.mouseY = e.touches[0].clientY - rect.top;
+
+            // 步进式光标：吸附到K线中心
+            if (!this.mainSize || !this.mainSize.h || !this.barW) return;
+            const priceRange = this._getPriceRange();
+            if (!priceRange || priceRange.max === priceRange.min) return;
+            const { startIdx } = this._getVisibleRange();
+            // 使用 Math.round 找到最近的K线索引，而不是 Math.floor
+            const barIndex = Math.round(this.mouseX / this.barW) + startIdx;
+
+            // X轴步进：吸附到K线中心
+            this.mouseX = (barIndex - startIdx) * this.barW + this.candleW / 2;
+
+            // Y轴步进：如果开启磁铁模式，吸附到最近的OHLC价格
+            if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
+              let price =
+                priceRange.max -
+                (this.mouseY / this.mainSize.h) * (priceRange.max - priceRange.min);
+              price = this._getMagnetPrice(price, barIndex);
+              this.mouseY =
+                this.mainSize.h -
+                ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
+            }
+
+            // 预览画图终点
+            if (this.drawStart) {
+              if (!this.mainSize || !this.mainSize.h || !this.barW) return;
+              const priceRange = this._getPriceRange();
+              if (!priceRange || priceRange.max === priceRange.min) return;
+              const { startIdx } = this._getVisibleRange();
+              // 使用 Math.round 找到最近的K线索引
+              const barIndex = Math.round(this.mouseX / this.barW) + startIdx;
+              let barCenterX = (barIndex - startIdx) * this.barW + this.candleW / 2;
+              let barCenterY = this.mouseY;
+              let price =
+                priceRange.max - (barCenterY / this.mainSize.h) * (priceRange.max - priceRange.min);
+
+              if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
+                price = this._getMagnetPrice(price, barIndex);
+                barCenterY =
+                  this.mainSize.h -
+                  ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
+              }
+
+              // 获取时间戳（如果索引超出范围，使用估算值）
+              let time;
+              if (barIndex >= 0 && barIndex < this.data.length) {
+                time = this.data[barIndex].time;
+              } else if (barIndex >= this.data.length && this.data.length > 0) {
+                const lastBar = this.data[this.data.length - 1];
+                const avgInterval =
+                  this.data.length > 1
+                    ? (lastBar.time - this.data[0].time) / (this.data.length - 1)
+                    : 3600000;
+                time = lastBar.time + avgInterval * (barIndex - this.data.length + 1);
+              } else {
+                time = Date.now();
+              }
+
+              this.drawPreview = {
+                x: barCenterX,
+                y: barCenterY,
+                price,
+                time,
+                barIndex,
+              };
+            }
+
+            this.renderAll();
+          } else if (this.showCrosshair) {
+            // 十字光标显示状态下：拖动仅移动光标，不平移图表
             // 更新十字光标位置
             this.mouseX = e.touches[0].clientX - rect.left;
             this.mouseY = e.touches[0].clientY - rect.top;
@@ -1740,30 +1885,253 @@ class ChartRenderer {
         ? Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY)
         : Infinity;
 
-      // 点击判定：时间 < 300ms 且 移动距离 < 15px
-      // 注意：如果十字光标已显示，需要更严格的判定避免误触
+      // 点击判定参数
       const clickThreshold = this.showCrosshair ? 10 : 15;
       const timeThreshold = this.showCrosshair ? 250 : 300;
-      if (touchDuration < timeThreshold && moveDistance < clickThreshold && touch) {
+
+      // 测量模式：触摸结束时设置起点或终点
+      if (this.measureMode) {
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+
+        if (!this.mainSize || !this.mainSize.h || !this.barW) return;
+        const priceRange = this._getPriceRange();
+        if (!priceRange || priceRange.max === priceRange.min) return;
+        const barIndex = this._getBarIndexFromX(x);
+        let barCenterX =
+          (barIndex - this._getVisibleRange().startIdx) * this.barW + this.candleW / 2;
+        let barCenterY = y;
+        let price =
+          priceRange.max - (barCenterY / this.mainSize.h) * (priceRange.max - priceRange.min);
+
+        // 磁铁模式：吸附到最近的OHLC价格（仅在有数据时）
+        if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
+          price = this._getMagnetPrice(price, barIndex);
+          // 更新Y坐标为吸附后的价格对应的位置
+          barCenterY =
+            this.mainSize.h -
+            ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
+        }
+
+        // 获取时间戳（如果索引超出范围，使用估算值）
+        let time;
+        if (barIndex >= 0 && barIndex < this.data.length) {
+          time = this.data[barIndex].time;
+        } else if (barIndex >= this.data.length && this.data.length > 0) {
+          // 未来区域：使用最后一个K线的时间加预估间隔
+          const lastBar = this.data[this.data.length - 1];
+          const avgInterval =
+            this.data.length > 1
+              ? (lastBar.time - this.data[0].time) / (this.data.length - 1)
+              : 3600000;
+          time = lastBar.time + avgInterval * (barIndex - this.data.length + 1);
+        } else {
+          time = Date.now();
+        }
+
+        // 第一次触摸结束：设置起点
+        if (!this.measureStart) {
+          this.measureStart = {
+            x: barCenterX,
+            y: barCenterY,
+            price,
+            time,
+            barIndex,
+          };
+          this.measureEnd = null;
+        }
+        // 第二次触摸结束：设置终点并保存测量结果
+        else if (!this.measureEnd) {
+          this.measureEnd = {
+            x: barCenterX,
+            y: barCenterY,
+            price,
+            time,
+            barIndex,
+          };
+
+          // 计算测量数据
+          const start = this.measureStart;
+          const end = this.measureEnd;
+          const priceDiff = end.price - start.price;
+          const priceDiffPercent = start.price !== 0 ? (priceDiff / start.price) * 100 : 0;
+          const timeDiff = end.time - start.time;
+          const timeDiffHours = timeDiff / (1000 * 60 * 60);
+
+          // 保存测量结果（保存K线索引而不是像素坐标，以便缩放时重新计算）
+          this.measurements.push({
+            start: {
+              barIndex: start.barIndex,
+              price: start.price,
+              time: start.time,
+            },
+            end: {
+              barIndex: end.barIndex,
+              price: end.price,
+              time: end.time,
+            },
+            priceDiff,
+            priceDiffPercent,
+            timeDiffHours,
+          });
+
+          // 保存测量结果后关闭测量模式
+          this.measureStart = null;
+          this.measureEnd = null;
+          this.measurePreview = null;
+          this.measureMode = false;
+          this.showCrosshair = false;
+
+          // 更新测量按钮状态
+          const measureBtn = document.getElementById('btnMeasure');
+          if (measureBtn) {
+            measureBtn.dataset.active = 'false';
+            measureBtn.classList.remove('active');
+          }
+        }
+
+        this.renderAll();
+      } else if (this.drawMode) {
+        // 画图模式：处理触摸结束
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+
+        if (!this.mainSize || !this.mainSize.h || !this.barW) return;
+        const priceRange = this._getPriceRange();
+        if (!priceRange || priceRange.max === priceRange.min) return;
+        const barIndex = this._getBarIndexFromX(x);
+        let barCenterX =
+          (barIndex - this._getVisibleRange().startIdx) * this.barW + this.candleW / 2;
+        let barCenterY = y;
+        let price =
+          priceRange.max - (barCenterY / this.mainSize.h) * (priceRange.max - priceRange.min);
+
+        // 磁铁模式：吸附到最近的OHLC价格（仅在有数据时）
+        if (this.magnetMode && barIndex >= 0 && barIndex < this.data.length) {
+          price = this._getMagnetPrice(price, barIndex);
+          // 更新Y坐标为吸附后的价格对应的位置
+          barCenterY =
+            this.mainSize.h -
+            ((price - priceRange.min) / (priceRange.max - priceRange.min)) * this.mainSize.h;
+        }
+
+        // 获取时间戳（如果索引超出范围，使用估算值）
+        let time;
+        if (barIndex >= 0 && barIndex < this.data.length) {
+          time = this.data[barIndex].time;
+        } else if (barIndex >= this.data.length && this.data.length > 0) {
+          // 未来区域：使用最后一个K线的时间加预估间隔
+          const lastBar = this.data[this.data.length - 1];
+          const avgInterval =
+            this.data.length > 1
+              ? (lastBar.time - this.data[0].time) / (this.data.length - 1)
+              : 3600000;
+          time = lastBar.time + avgInterval * (barIndex - this.data.length + 1);
+        } else {
+          time = Date.now();
+        }
+
+        // 水平线和垂直线：一次拖动完成（使用当前光标位置）
+        if (this.drawTool === 'horizontal' || this.drawTool === 'vertical') {
+          const drawing = {
+            type: this.drawTool,
+            start: {
+              x: barCenterX,
+              y: this.drawTool === 'horizontal' ? barCenterY : 0,
+              price: price,
+              time: time,
+              barIndex: barIndex,
+            },
+            end: {
+              x: this.drawTool === 'vertical' ? barCenterX : this.mainSize.w,
+              y: this.drawTool === 'horizontal' ? barCenterY : this.mainSize.h,
+              price: price,
+              time: time,
+              barIndex: barIndex,
+            },
+          };
+          this.drawings.push(drawing);
+          this._saveDrawings();
+          this.drawMode = false;
+          this.showCrosshair = false;
+          // 移除按钮高亮
+          const drawToolsGroup = document.getElementById('drawToolsGroup');
+          if (drawToolsGroup) {
+            drawToolsGroup
+              .querySelectorAll('.draw-tool-btn')
+              .forEach((btn) => btn.classList.remove('active'));
+          }
+          this.renderAll();
+          return;
+        }
+
+        // 需要两个点的画图工具：第一次触摸结束设置起点，第二次触摸结束设置终点
+        if (!this.drawStart) {
+          // 第一次触摸结束：设置起点
+          this.drawStart = {
+            x: barCenterX,
+            y: barCenterY,
+            price: price,
+            time: time,
+            barIndex: barIndex,
+          };
+          this.drawPreview = null;
+          this.renderAll();
+        } else {
+          // 第二次触摸结束：设置终点并保存绘图
+          const drawing = {
+            type: this.drawTool,
+            start: this.drawStart,
+            end: {
+              x: barCenterX,
+              y: barCenterY,
+              price: price,
+              time: time,
+              barIndex: barIndex,
+            },
+          };
+          this.drawings.push(drawing);
+          this._saveDrawings();
+          this.drawStart = null;
+          this.drawPreview = null;
+          this.drawMode = false;
+          this.showCrosshair = false;
+          // 移除按钮高亮
+          const drawToolsGroup = document.getElementById('drawToolsGroup');
+          if (drawToolsGroup) {
+            drawToolsGroup
+              .querySelectorAll('.draw-tool-btn')
+              .forEach((btn) => btn.classList.remove('active'));
+          }
+          this.renderAll();
+        }
+      } else if (touchDuration < timeThreshold && moveDistance < clickThreshold && touch) {
+        // 非测量模式：点击切换十字光标显示/隐藏，或清除测量结果
         const x = touch.clientX - rect.left;
         const y = touch.clientY - rect.top;
 
         // 检查是否在价格轴区域
         const isPriceAxis = x > rect.width - this.priceAxisW;
         if (!isPriceAxis) {
-          // 切换十字光标显示状态
-          this.showCrosshair = !this.showCrosshair;
-
-          if (this.showCrosshair) {
-            this.mouseX = x;
-            this.mouseY = y;
-            this._updateCrosshair();
+          // 如果有测量结果，点击清除测量
+          if (this.measurements.length > 0) {
+            this.measurements = [];
+            this.renderAll();
           } else {
-            this.mouseX = -1;
-            this.mouseY = -1;
-            document.getElementById('tooltip').style.display = 'none';
+            // 切换十字光标显示状态
+            this.showCrosshair = !this.showCrosshair;
+
+            if (this.showCrosshair) {
+              this.mouseX = x;
+              this.mouseY = y;
+              this._updateCrosshair();
+            } else {
+              this.mouseX = -1;
+              this.mouseY = -1;
+              document.getElementById('tooltip').style.display = 'none';
+            }
+            this.renderAll();
           }
-          this.renderAll();
         }
       } else if (!this.showCrosshair && this._velocitySamples.length >= 2) {
         // 非点击 & 非十字光标模式 → 启动惯性滑动
@@ -3546,7 +3914,8 @@ class ChartRenderer {
     // 测量工具
     if (this.measureMode && this.measureStart) {
       const start = this.measureStart;
-      const end = this.measureEnd;
+      // 使用 measurePreview 进行预览，measureEnd 用于最终保存
+      const end = this.measureEnd || this.measurePreview;
 
       if (end) {
         // 绘制测量背景（蓝色透明）
@@ -6893,13 +7262,28 @@ class App {
     // 测量工具
     const measureBtn = document.getElementById('btnMeasure');
     measureBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
       this.renderer.measureMode = !this.renderer.measureMode;
       measureBtn.dataset.active = this.renderer.measureMode.toString();
       measureBtn.classList.toggle('active', this.renderer.measureMode);
+
+      // 进入测量模式时自动显示光标
+      if (this.renderer.measureMode) {
+        this.renderer.showCrosshair = true;
+        // 重置测量状态
+        this.renderer.measureStart = null;
+        this.renderer.measureEnd = null;
+        this.renderer.measurePreview = null;
+        document.getElementById('tooltip').style.display = 'none';
+      }
+
       if (!this.renderer.measureMode) {
         // 退出测量模式时只清除临时测量数据，保留保存的测量结果
         this.renderer.measureStart = null;
         this.renderer.measureEnd = null;
+        this.renderer.measurePreview = null;
+        this.renderer.showCrosshair = false;
       }
       this.renderer.renderAll();
     });
@@ -6908,6 +7292,8 @@ class App {
     const magnetBtn = document.getElementById('btnMagnet');
     if (magnetBtn) {
       magnetBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
         this.renderer.magnetMode = !this.renderer.magnetMode;
         magnetBtn.dataset.active = this.renderer.magnetMode.toString();
         magnetBtn.classList.toggle('active', this.renderer.magnetMode);
@@ -6924,46 +7310,93 @@ class App {
           e.preventDefault();
           e.stopPropagation();
         });
-        btn.addEventListener('click', (e) => {
+
+        // 进入画图模式时自动显示光标
+        if (this.renderer.drawMode) {
+          this.renderer.showCrosshair = true;
+        }
+
+        const handleDrawToolClick = (e) => {
           e.stopPropagation();
+          e.preventDefault();
           const tool = btn.dataset.tool;
           // 如果点击的是同一个工具按钮，切换画图模式
           if (this.renderer.drawTool === tool && this.renderer.drawMode) {
             this.renderer.drawMode = false;
+            this.renderer.showCrosshair = false;
             toolBtns.forEach((b) => b.classList.remove('active'));
           } else {
             this.renderer.drawTool = tool;
             this.renderer.drawMode = true;
+            this.renderer.showCrosshair = true;
             // 更新按钮激活状态
             toolBtns.forEach((b) => b.classList.remove('active'));
             btn.classList.add('active');
           }
           this.renderer.renderAll();
+        };
+
+        btn.addEventListener('click', handleDrawToolClick);
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          btn.style.transform = 'scale(1)';
+          handleDrawToolClick(e);
         });
+        btn.addEventListener(
+          'touchstart',
+          (e) => {
+            e.stopPropagation();
+            btn.style.transform = 'scale(0.95)';
+          },
+          { passive: true },
+        );
       });
     }
 
     // 绘图面板关闭按钮
     const btnCloseDrawingsPanel = document.getElementById('btnCloseDrawingsPanel');
     if (btnCloseDrawingsPanel) {
-      btnCloseDrawingsPanel.addEventListener('click', () => {
+      const handleCloseDrawings = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const drawingsPanel = document.getElementById('drawingsPanel');
         if (drawingsPanel) {
           drawingsPanel.classList.add('hidden');
         }
+      };
+      btnCloseDrawingsPanel.addEventListener('click', handleCloseDrawings);
+      btnCloseDrawingsPanel.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        handleCloseDrawings(e);
       });
     }
 
     // 打开绘图面板按钮
     const btnOpenDrawingsPanel = document.getElementById('btnOpenDrawingsPanel');
     if (btnOpenDrawingsPanel) {
-      btnOpenDrawingsPanel.addEventListener('click', () => {
+      const handleOpenDrawings = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const drawingsPanel = document.getElementById('drawingsPanel');
         if (drawingsPanel) {
           this.renderer._updateDrawingsPanel();
           drawingsPanel.classList.remove('hidden');
         }
+      };
+      btnOpenDrawingsPanel.addEventListener('click', handleOpenDrawings);
+      btnOpenDrawingsPanel.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        btnOpenDrawingsPanel.style.transform = 'scale(1)';
+        handleOpenDrawings(e);
       });
+      btnOpenDrawingsPanel.addEventListener(
+        'touchstart',
+        () => {
+          btnOpenDrawingsPanel.style.transform = 'scale(0.95)';
+        },
+        { passive: true },
+      );
     }
 
     // 超级趋势参数设置
@@ -7076,7 +7509,10 @@ class App {
     // 重置图表
     const btnResetChart = document.getElementById('btnResetChart');
     const handleResetChart = (e) => {
-      if (e) e.preventDefault();
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       this.renderer.resetChart();
       // 同步更新Y轴自动缩放按钮状态
       const btn = document.getElementById('btnAutoScaleY');
@@ -7183,7 +7619,10 @@ class App {
     // Y轴自动缩放切换
     const btnAutoScaleY = document.getElementById('btnAutoScaleY');
     const handleAutoScaleY = (e) => {
-      if (e) e.preventDefault();
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       const isAuto = this.renderer.toggleAutoScaleY();
       btnAutoScaleY.classList.toggle('active', isAuto);
       btnAutoScaleY.title = isAuto ? 'Y轴自动缩放（已开启）' : 'Y轴自动缩放（已关闭）';
@@ -7207,7 +7646,10 @@ class App {
     const btnFocusMode = document.getElementById('btnFocusMode');
     if (btnFocusMode) {
       const handleFocusMode = (e) => {
-        if (e) e.preventDefault();
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         document.body.classList.toggle('focus-mode');
         const isFocusMode = document.body.classList.contains('focus-mode');
         btnFocusMode.classList.toggle('active', isFocusMode);
@@ -7222,11 +7664,13 @@ class App {
       // 统一使用 pointerdown 事件处理，避免移动端点击和触摸冲突
       btnFocusMode.addEventListener('pointerdown', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         btnFocusMode.style.transform = 'scale(0.95)';
       });
 
       btnFocusMode.addEventListener('pointerup', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         btnFocusMode.style.transform = 'scale(1)';
         handleFocusMode(e);
       });
