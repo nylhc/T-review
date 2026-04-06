@@ -4852,7 +4852,7 @@ class ChartRenderer {
     for (let i = 0; i <= steps; i++) {
       const frac = i / steps;
       const price = this._priceHi - frac * (this._priceHi - this._priceLo);
-      html += `<div class="price-tick" style="position:absolute;right:6px;top:${
+      html += `<div class="price-tick" style="position:absolute;left:6px;top:${
         Math.round(frac * h) - 8
       }px">${fmtPrice(price)}</div>`;
     }
@@ -4864,15 +4864,27 @@ class ChartRenderer {
       const up = lastBar.close >= lastBar.open;
       const priceColor = up ? '#26a69a' : '#ef5350';
       // 价格标签
-      html += `<div style="position:absolute;right:0;top:${top}px;background:${priceColor};color:#fff;font-size:11px;padding:1px 5px;border-radius:2px 0 0 2px;font-variant-numeric:tabular-nums;white-space:nowrap">${fmtPrice(
+      html += `<div style="position:absolute;left:0;top:${top}px;background:${priceColor};color:#fff;font-size:11px;padding:1px 5px;border-radius:0 2px 2px 0;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:900">${fmtPrice(
         lastBar.close,
       )}</div>`;
       // K线倒计时（跟随价格线，复盘模式下不显示）
       if (!document.body.classList.contains('review-mode')) {
         const countdown = this._getBarCountdown();
         if (countdown) {
-          const countdownTop = top + 20; // 价格标签下方 20px
-          html += `<div style="position:absolute;right:0;top:${countdownTop}px;font-size:10px;color:${priceColor};font-weight:600;background:rgba(19,23,34,0.9);padding:1px 5px;border-radius:2px 0 0 2px;border:1px solid ${priceColor};white-space:nowrap">${countdown}</div>`;
+          const countdownHeight = 16; // 倒计时标签高度
+          const priceLabelHeight = 16; // 价格标签高度
+
+          // 计算倒计时标签位置
+          let countdownTop;
+          if (top + 20 + countdownHeight > h) {
+            // 如果在下方会超出画布，显示在价格标签上方
+            countdownTop = Math.max(0, top - countdownHeight - 4);
+          } else {
+            // 正常显示在价格标签下方
+            countdownTop = top + priceLabelHeight + 4;
+          }
+
+          html += `<div style="position:absolute;left:0;top:${countdownTop}px;font-size:10px;color:${priceColor};font-weight:600;background:rgba(19,23,34,0.9);padding:1px 5px;border-radius:0 2px 2px 0;border:1px solid ${priceColor};white-space:nowrap;z-index:900">${countdown}</div>`;
         }
       }
     }
@@ -4881,9 +4893,175 @@ class ChartRenderer {
       const priceRange = this._priceHi - this._priceLo;
       const cursorPrice = this._priceHi - (this.mouseY / h) * priceRange;
       const labelTop = Math.round(Math.max(0, Math.min(h - 18, this.mouseY - 9)));
-      html += `<div style="position:absolute;right:0;top:${labelTop}px;background:rgba(38,166,154,0.95);color:#fff;font-size:11px;font-weight:600;padding:2px 6px;border-radius:2px 0 0 2px;border:1px solid #26a69a;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:10">${fmtPrice(
+      html += `<div style="position:absolute;left:0;top:${labelTop}px;background:rgba(38,166,154,0.95);color:#fff;font-size:11px;font-weight:600;padding:2px 6px;border-radius:0 2px 2px 0;border:1px solid #26a69a;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:1000">${fmtPrice(
         cursorPrice,
       )}</div>`;
+    }
+    // 画图工具背景填充
+    if (this.drawings && this.drawings.length > 0) {
+      const priceRange = this._priceHi - this._priceLo;
+      
+      // 渲染画图工具背景填充
+      this.drawings.forEach((drawing) => {
+        if (drawing.type === 'horizontal') {
+          // 水平线背景
+          const price = drawing.start.price;
+          if (price >= this._priceLo && price <= this._priceHi) {
+            const frac = 1 - (price - this._priceLo) / priceRange;
+            const top = Math.round(frac * h);
+            html += `<div style="position:absolute;left:0;top:${top - 1}px;width:100%;height:2px;background:#ff5722;opacity:0.3;z-index:1"></div>`;
+          }
+        } else if (drawing.type === 'trendline') {
+          // 趋势线背景
+          const startPrice = drawing.start.price;
+          const endPrice = drawing.end.price;
+          if (startPrice >= this._priceLo && startPrice <= this._priceHi && endPrice >= this._priceLo && endPrice <= this._priceHi) {
+            const startFrac = 1 - (startPrice - this._priceLo) / priceRange;
+            const endFrac = 1 - (endPrice - this._priceLo) / priceRange;
+            const startTop = Math.round(startFrac * h);
+            const endTop = Math.round(endFrac * h);
+            const minTop = Math.min(startTop, endTop);
+            const maxTop = Math.max(startTop, endTop);
+            html += `<div style="position:absolute;left:0;top:${minTop}px;width:100%;height:${maxTop - minTop}px;background:#ff5722;opacity:0.1;z-index:1"></div>`;
+          }
+        } else if (drawing.type === 'rectangle') {
+          // 矩形背景
+          const startPrice = drawing.start.price;
+          const endPrice = drawing.end.price;
+          if (startPrice >= this._priceLo && startPrice <= this._priceHi && endPrice >= this._priceLo && endPrice <= this._priceHi) {
+            const startFrac = 1 - (startPrice - this._priceLo) / priceRange;
+            const endFrac = 1 - (endPrice - this._priceLo) / priceRange;
+            const minTop = Math.round(Math.min(startFrac, endFrac) * h);
+            const maxTop = Math.round(Math.max(startFrac, endFrac) * h);
+            html += `<div style="position:absolute;left:0;top:${minTop}px;width:100%;height:${maxTop - minTop}px;background:#2962ff;opacity:0.15;z-index:1"></div>`;
+          }
+        } else if (drawing.type === 'fibonacci') {
+          // 斐波那契背景
+          const startPrice = drawing.start.price;
+          const endPrice = drawing.end.price;
+          if (startPrice >= this._priceLo && startPrice <= this._priceHi && endPrice >= this._priceLo && endPrice <= this._priceHi) {
+            const fibLevels = [0, 0.382, 0.5, 0.618, 0.786, 1, 1.272, 1.382, 1.618, 2, 2.618];
+            const startFrac = 1 - (startPrice - this._priceLo) / priceRange;
+            const endFrac = 1 - (endPrice - this._priceLo) / priceRange;
+            const minTop = Math.round(Math.min(startFrac, endFrac) * h);
+            const maxTop = Math.round(Math.max(startFrac, endFrac) * h);
+            const height = maxTop - minTop;
+            
+            for (let i = 0; i < fibLevels.length - 1; i++) {
+              const level1 = fibLevels[i];
+              const level2 = fibLevels[i + 1];
+              const y1 = minTop + level1 * height;
+              const y2 = minTop + level2 * height;
+              html += `<div style="position:absolute;left:0;top:${y1}px;width:100%;height:${y2 - y1}px;background:#4caf50;opacity:${0.05 + (i % 2) * 0.05};z-index:1"></div>`;
+            }
+          }
+        }
+      });
+    }
+    
+    // 画图工具价格标签
+    if (this.drawings && this.drawings.length > 0) {
+      const priceRange = this._priceHi - this._priceLo;
+      const labelHeight = 16; // 标签高度
+      const labelSpacing = 4; // 标签间距
+
+      // 收集所有画图工具的价格信息
+      const priceLabels = [];
+      this.drawings.forEach((drawing) => {
+        if (drawing.type === 'horizontal') {
+          // 水平线
+          const price = drawing.start.price;
+          // 检查价格是否在可见范围内
+          if (price >= this._priceLo && price <= this._priceHi) {
+            const frac = 1 - (price - this._priceLo) / priceRange;
+            const top = Math.round(
+              Math.max(0, Math.min(h - labelHeight, frac * h - labelHeight / 2)),
+            );
+            priceLabels.push({ price, top, type: 'horizontal', color: '#ff5722' });
+          }
+        } else if (drawing.type === 'trendline') {
+          // 趋势线
+          const startPrice = drawing.start.price;
+          const endPrice = drawing.end.price;
+          // 检查价格是否在可见范围内
+          if (startPrice >= this._priceLo && startPrice <= this._priceHi) {
+            const frac = 1 - (startPrice - this._priceLo) / priceRange;
+            const top = Math.round(
+              Math.max(0, Math.min(h - labelHeight, frac * h - labelHeight / 2)),
+            );
+            priceLabels.push({ price: startPrice, top, type: 'trendline', color: '#ff5722' });
+          }
+          if (endPrice >= this._priceLo && endPrice <= this._priceHi) {
+            const frac = 1 - (endPrice - this._priceLo) / priceRange;
+            const top = Math.round(
+              Math.max(0, Math.min(h - labelHeight, frac * h - labelHeight / 2)),
+            );
+            priceLabels.push({ price: endPrice, top, type: 'trendline', color: '#ff5722' });
+          }
+        } else if (drawing.type === 'rectangle') {
+          // 矩形
+          const startPrice = drawing.start.price;
+          const endPrice = drawing.end.price;
+          // 检查价格是否在可见范围内
+          if (startPrice >= this._priceLo && startPrice <= this._priceHi) {
+            const frac = 1 - (startPrice - this._priceLo) / priceRange;
+            const top = Math.round(
+              Math.max(0, Math.min(h - labelHeight, frac * h - labelHeight / 2)),
+            );
+            priceLabels.push({ price: startPrice, top, type: 'rectangle', color: '#2962ff' });
+          }
+          if (endPrice >= this._priceLo && endPrice <= this._priceHi) {
+            const frac = 1 - (endPrice - this._priceLo) / priceRange;
+            const top = Math.round(
+              Math.max(0, Math.min(h - labelHeight, frac * h - labelHeight / 2)),
+            );
+            priceLabels.push({ price: endPrice, top, type: 'rectangle', color: '#2962ff' });
+          }
+        } else if (drawing.type === 'fibonacci') {
+          // 斐波那契
+          const startPrice = drawing.start.price;
+          const endPrice = drawing.end.price;
+          // 检查价格是否在可见范围内
+          if (startPrice >= this._priceLo && startPrice <= this._priceHi) {
+            const frac = 1 - (startPrice - this._priceLo) / priceRange;
+            const top = Math.round(
+              Math.max(0, Math.min(h - labelHeight, frac * h - labelHeight / 2)),
+            );
+            priceLabels.push({ price: startPrice, top, type: 'fibonacci', color: '#4caf50' });
+          }
+          if (endPrice >= this._priceLo && endPrice <= this._priceHi) {
+            const frac = 1 - (endPrice - this._priceLo) / priceRange;
+            const top = Math.round(
+              Math.max(0, Math.min(h - labelHeight, frac * h - labelHeight / 2)),
+            );
+            priceLabels.push({ price: endPrice, top, type: 'fibonacci', color: '#4caf50' });
+          }
+        }
+      });
+
+      // 按top位置排序
+      priceLabels.sort((a, b) => a.top - b.top);
+
+      // 调整重叠的标签位置
+      for (let i = 1; i < priceLabels.length; i++) {
+        const current = priceLabels[i];
+        const previous = priceLabels[i - 1];
+
+        // 检查是否重叠
+        if (current.top < previous.top + labelHeight + labelSpacing) {
+          // 调整当前标签位置，确保不重叠
+          current.top = previous.top + labelHeight + labelSpacing;
+          // 确保标签不会超出画布
+          if (current.top > h - labelHeight) {
+            current.top = h - labelHeight;
+          }
+        }
+      }
+
+      // 渲染调整后的标签
+      priceLabels.forEach((label) => {
+        html += `<div style="position:absolute;left:0;top:${label.top}px;background:${label.color};color:#fff;font-size:11px;padding:1px 5px;border-radius:0 2px 2px 0;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:5">${fmtPrice(label.price)}</div>`;
+      });
     }
     axis.innerHTML = html;
   }
@@ -4998,9 +5176,62 @@ class ChartRenderer {
       if (cursorTime) {
         const cursorX = barIdx * this.barW + this.candleW / 2;
         if (cursorX >= 0 && cursorX <= chartW) {
-          html += `<div class="time-tick cursor-time" style="left:${cursorX}px;transform:translateX(-50%);bottom:0;background:rgba(38,166,154,0.95);color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:500;">${fmtDateFull(cursorTime)}</div>`;
+          html += `<div class="time-tick cursor-time" style="left:${cursorX}px;transform:translateX(-50%);bottom:0;background:rgba(38,166,154,0.95);color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:500;z-index:1000;">${fmtDateFull(cursorTime)}</div>`;
         }
       }
+    }
+
+    // 垂直线时间标签
+    if (this.drawings && this.drawings.length > 0) {
+      const labelHeight = 20; // 标签高度
+      const labelSpacing = 6; // 标签间距
+
+      // 收集所有垂直线的信息
+      const verticalLines = [];
+      this.drawings.forEach((drawing) => {
+        if (drawing.type === 'vertical') {
+          // 使用时间戳获取正确的K线索引（支持周期切换）
+          const barIndex = this._getBarIndexFromTime(drawing.start.time);
+          // 检查时间是否在可见范围内
+          if (barIndex >= startIdx && barIndex < endIdx) {
+            const relativeIdx = barIndex - startIdx;
+            const x = relativeIdx * this.barW + this.candleW / 2;
+            if (x >= 0 && x <= chartW) {
+              verticalLines.push({
+                time: drawing.start.time,
+                x,
+                barIndex,
+              });
+            }
+          }
+        }
+      });
+
+      // 按x位置排序
+      verticalLines.sort((a, b) => a.x - b.x);
+
+      // 调整重叠的标签位置
+      let lastEndX = -Infinity;
+      verticalLines.forEach((line) => {
+        // 计算当前标签的起始位置
+        const labelStartX = line.x - 60; // 标签宽度约120px，所以起始位置是中心减60
+
+        // 如果与前一个标签重叠，调整位置
+        if (labelStartX < lastEndX) {
+          line.offset = lastEndX - labelStartX + 10; // 10px间距
+        } else {
+          line.offset = 0;
+        }
+
+        // 更新最后一个标签的结束位置
+        lastEndX = line.x + 60 + (line.offset || 0);
+      });
+
+      // 渲染调整后的标签
+      verticalLines.forEach((line) => {
+        const leftOffset = line.offset || 0;
+        html += `<div class="time-tick vertical-time" style="left:${line.x + leftOffset}px;transform:translateX(-50%);bottom:0;background:rgba(33,150,243,0.9);color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:500;white-space:nowrap;z-index:10;">${fmtDateFull(line.time)}</div>`;
+      });
     }
 
     axis.innerHTML = html;
